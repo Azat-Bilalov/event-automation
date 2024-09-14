@@ -94,24 +94,33 @@ func NewCalendarClient(credentialsPath, tokenPath string) (*calendar.Service, er
 	return srv, nil
 }
 
+type EventRequest struct {
+	Title         string
+	Description   string
+	Attendees     []string
+	StartDatetime time.Time
+	EndDatetime   time.Time
+	Timezone      int
+}
+
 // CreateEvent создает новое событие в календаре
-func CreateEvent(srv *calendar.Service, title, description string, attendees []string, date time.Time) (*calendar.Event, error) {
+func CreateEvent(srv *calendar.Service, req *EventRequest) (*calendar.Event, error) {
 	event := &calendar.Event{
-		Summary:     title,
-		Description: description,
+		Summary:     req.Title,
+		Description: req.Description,
 		Start: &calendar.EventDateTime{
-			DateTime: date.Format(time.RFC3339),
+			DateTime: req.StartDatetime.Format(time.RFC3339),
 			TimeZone: "UTC",
 		},
 		End: &calendar.EventDateTime{
-			DateTime: date.Add(30 * time.Minute).Format(time.RFC3339),
+			DateTime: req.EndDatetime.Format(time.RFC3339),
 			TimeZone: "UTC",
 		},
-		Attendees: make([]*calendar.EventAttendee, len(attendees)),
+		Attendees: make([]*calendar.EventAttendee, len(req.Attendees)),
 	}
 
 	// Добавляем участников
-	for i, email := range attendees {
+	for i, email := range req.Attendees {
 		event.Attendees[i] = &calendar.EventAttendee{Email: email}
 	}
 

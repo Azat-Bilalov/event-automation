@@ -37,6 +37,6 @@ type LLMClarificationMeetRequest struct {
 // Ответ с данными встречи от LLM-сервиса
 type LLMMeetResponse struct {
 	Title         string `json:"title"`
-	StartDateTime string `json:"start_datetime"`
-	EndDateTime   string `json:"end_datetime"`
+	StartDatetime string `json:"start_datetime"`
+	EndDatetime   string `json:"end_datetime"`
 }

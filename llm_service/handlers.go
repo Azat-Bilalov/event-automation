@@ -58,7 +58,7 @@ func GetDetailedMeetHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Генерируем системное сообщение
-	systemMessage := GetSystemMessage("You clarify the details for the meeting title and datetime.", llmReq.Language, llmReq.Timezone)
+	systemMessage := GetSystemMessage("You clarify the details for the meeting title and Datetime.", llmReq.Language, llmReq.Timezone)
 
 	// Вызываем LLM сервис
 	llmResponse, err := CallLLM(systemMessage, []string{llmReq.Meet, llmReq.Prompt})
