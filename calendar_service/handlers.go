@@ -60,6 +60,7 @@ func CreateEventHandler(w http.ResponseWriter, r *http.Request) {
 		Attendees:     attendees,
 		StartDatetime: startDatetime,
 		EndDatetime:   endDatetime,
+		Timezone:      req.Timezone,
 	}
 
 	// Создаем событие

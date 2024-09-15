@@ -3,6 +3,7 @@ package calendar_service
 import (
 	"context"
 	"encoding/json"
+	"event-automation/utils"
 	"fmt"
 	"log"
 	"net/http"
@@ -105,15 +106,18 @@ type EventRequest struct {
 
 // CreateEvent создает новое событие в календаре
 func CreateEvent(srv *calendar.Service, req *EventRequest) (*calendar.Event, error) {
+	startDate := utils.GetDateWithoutTimezone(req.StartDatetime, req.Timezone)
+	endDate := utils.GetDateWithoutTimezone(req.EndDatetime, req.Timezone)
+
 	event := &calendar.Event{
 		Summary:     req.Title,
 		Description: req.Description,
 		Start: &calendar.EventDateTime{
-			DateTime: req.StartDatetime.Format(time.RFC3339),
+			DateTime: startDate.Format(time.RFC3339),
 			TimeZone: "UTC",
 		},
 		End: &calendar.EventDateTime{
-			DateTime: req.EndDatetime.Format(time.RFC3339),
+			DateTime: endDate.Format(time.RFC3339),
 			TimeZone: "UTC",
 		},
 		Attendees: make([]*calendar.EventAttendee, len(req.Attendees)),

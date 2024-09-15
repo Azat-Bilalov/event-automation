@@ -7,4 +7,5 @@ type CreateEventRequest struct {
 	UserIDs       []string `json:"user_ids"`
 	StartDatetime string   `json:"start_datetime"`
 	EndDatetime   string   `json:"end_datetime"`
+	Timezone      int      `json:"timezone"`
 }
