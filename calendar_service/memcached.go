@@ -5,8 +5,9 @@ import "errors"
 // FakeMemcached эмуляция хранилища никнеймов и почт
 var FakeMemcached = map[string]string{
 	"tolkachev_r": "tolkachev.rodion.03@gmail.com",
-	"azat_bil": "az.bilalov@gmail.com",
-	"azat": "az.bilalov@mail.ru",
+	"azat_bil":    "az.bilalov@gmail.com",
+	"azat":        "az.bilalov@mail.ru",
+	"ivan":        "elnikvolk908@gmail.com",
 }
 
 func GetEmailByNickname(nickname string) (string, error) {
