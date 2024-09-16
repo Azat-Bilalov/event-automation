@@ -6,21 +6,17 @@ import (
 	"fmt"
 	"net/http"
 	"os"
-	"time"
 )
 
 // CallLLM отправляет запрос к LLM сервису (Groq)
-func CallLLM(messages []string, language string, timezone int) (string, error) {
+func CallLLM(systemMessage string, userMessages []string) (string, error) {
 	llmAPIURL := os.Getenv("LLM_API_URL")
 	bearerToken := os.Getenv("LLM_API_TOKEN") // Получаем токен из переменных окружения
 
-	llmMessages := make([]OpenAICompletionsMessage, len(messages)+1)
-	llmMessages[0] = OpenAICompletionsMessage{
-		Role: "system", 
-		Content: GetSystemMessage(time.Now(), language, timezone),
-}
+	llmMessages := make([]OpenAICompletionsMessage, len(userMessages)+1)
 
-	for i, message := range messages {
+	llmMessages[0] = OpenAICompletionsMessage{Role: "system", Content: systemMessage}
+	for i, message := range userMessages {
 		llmMessages[i+1] = OpenAICompletionsMessage{Role: "user", Content: message}
 	}
 

@@ -23,11 +23,11 @@ func CreateEventHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Получаем email'ы по никнеймам
 	var attendees []string
-	for _, nickname := range req.Nicknames {
-		email, err := GetEmailByNickname(nickname)
+	for _, userID := range req.UserIDs {
+		email, err := GetEmailByID(userID)
 		if err != nil {
 			log.Printf("Error: %v", err)
-			http.Error(w, "Invalid nickname: "+nickname, http.StatusBadRequest)
+			http.Error(w, "Invalid user id: "+userID, http.StatusBadRequest)
 			return
 		}
 		attendees = append(attendees, email)
@@ -43,15 +43,28 @@ func CreateEventHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Парсим дату в формате "2022-01-01T15:04:05Z"
-	date, err := time.Parse(time.RFC3339, req.Date)
+	startDatetime, err := time.Parse(time.RFC3339, req.StartDatetime)
 	if err != nil {
 		http.Error(w, "Invalid date format", http.StatusBadRequest)
 		return
 	}
-	
+	endDatetime, err := time.Parse(time.RFC3339, req.EndDatetime)
+	if err != nil {
+		http.Error(w, "Invalid date format", http.StatusBadRequest)
+		return
+	}
+
+	eventRequest := &EventRequest{
+		Title:         req.Title,
+		Description:   req.Description,
+		Attendees:     attendees,
+		StartDatetime: startDatetime,
+		EndDatetime:   endDatetime,
+		Timezone:      req.Timezone,
+	}
+
 	// Создаем событие
-	event, err := CreateEvent(client, req.Title, req.Description, attendees, date)
+	event, err := CreateEvent(client, eventRequest)
 	if err != nil {
 		http.Error(w, "Failed to create event", http.StatusInternalServerError)
 		return
