@@ -2,7 +2,7 @@ package telegram
 
 import (
 	"encoding/json"
-	"event-automation/bot/lib/e"
+	"event-automation/lib/e"
 	"io"
 	"net/http"
 	"net/url"
