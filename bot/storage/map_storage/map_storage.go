@@ -1,7 +1,7 @@
 package storage
 
 import (
-	"event-automation/bot/lib/e"
+	"event-automation/lib/e"
 	"fmt"
 )
 
