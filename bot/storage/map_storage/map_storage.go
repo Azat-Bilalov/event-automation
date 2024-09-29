@@ -20,13 +20,13 @@ func (s *Storage) Save(key string, value string) error {
 	return nil
 }
 
-func (s *Storage) IsExist(key string) (bool, error) {
+func (s *Storage) IsExist(key string) bool {
 	_, ok := s.mapping[key]
-	return ok, nil
+	return ok
 }
 
 func (s *Storage) Delete(key string) error {
-	if ok, _ := s.IsExist(key); !ok {
+	if ok := s.IsExist(key); !ok {
 		return e.Wrap("Key not found", fmt.Errorf("key: %s", key))
 	}
 	delete(s.mapping, key)
@@ -34,7 +34,7 @@ func (s *Storage) Delete(key string) error {
 }
 
 func (s *Storage) Get(key string) (string, error) {
-	if ok, _ := s.IsExist(key); !ok {
+	if ok := s.IsExist(key); !ok {
 		return "", e.Wrap("Key not found", fmt.Errorf("key: %s", key))
 	}
 	return s.mapping[key], nil
