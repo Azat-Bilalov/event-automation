@@ -1,8 +1,8 @@
 package telegram
 
 import (
+	"event-automation/lib/email"
 	"log"
-	"net/mail"
 	"strings"
 )
 
@@ -70,7 +70,7 @@ func (p *Processor) handleDefaultState(text string, chatID int, username string,
 }
 
 func (p *Processor) handleEmailState(text string, chatID int, username string, user *User) error {
-	if isEmail(text) {
+	if email.IsEmail(text) {
 		user.Email = text
 		user.State = StateDefault
 		p.saveEmail(user.Email, []string{username})
@@ -104,10 +104,5 @@ func (p *Processor) saveEmail(email string, usernames []string) {
 }
 
 func isSaveEmailCmd(text string) bool {
-	return isEmail(text)
-}
-
-func isEmail(text string) bool {
-	_, err := mail.ParseAddress(text)
-	return err == nil
+	return email.IsEmail(text)
 }
