@@ -8,7 +8,21 @@ import (
 	"event-automation/lib/e"
 )
 
+type UserState int
+
+const (
+	StateDefault UserState = iota
+	StateAwaitingEmail
+	StateAwaitingEventDetails
+)
+
+type User struct {
+	State UserState
+	Email string
+}
+
 type Processor struct {
+	users   map[string]*User
 	tg      *telegram.Client
 	offset  int
 	storage storage.Storage
@@ -26,6 +40,7 @@ var (
 
 func New(client *telegram.Client, storage storage.Storage) *Processor {
 	return &Processor{
+		users:   make(map[string]*User),
 		tg:      client,
 		storage: storage,
 	}
@@ -46,6 +61,11 @@ func (p *Processor) processMessage(event events.Event) error {
 		return e.Wrap("failed to get meta from event", err)
 	}
 
+	if err := p.doCmd(event.Text, meta.ChatID, meta.Username); err != nil {
+		return e.Wrap("failed to process command", err)
+	}
+
+	return nil
 }
 
 func meta(event events.Event) (Meta, error) {
