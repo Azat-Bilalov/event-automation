@@ -64,7 +64,10 @@ func main() {
 
 						msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Начинаю обработку сообщений")
 						bot.Send(msg)
-						handlers.CreateEvent(bot, store, update.Message)
+						err := handlers.CreateEvent(bot, store, update.Message)
+						if err != nil {
+							log.Printf("error %s  ", err)
+						}
 						counter = 0
 
 					}()
