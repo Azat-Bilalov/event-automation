@@ -29,15 +29,16 @@ func main() {
 
 	updates := bot.GetUpdatesChan(u)
 	counter := 0 // временное решение для начала отсчета пересланных сообщений
+
 	for update := range updates {
 		if update.Message == nil {
 			log.Printf("тута")
 			continue
 		}
 
-		log.Printf("fff[%s] %s", update.Message.From.UserName, update.Message.Text)
-		log.Printf("asd[%s] %s", update.Message)
-
+		log.Printf("fff %s  %s", update.Message.From.UserName, update.Message.Text)
+		log.Printf("asd %v ", update.Message.ForwardFrom)
+		log.Printf("adsd %v ", update.Message.ForwardSenderName)
 		switch update.Message.Command() {
 		case "start":
 			msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Welcome to the bot!")
@@ -48,21 +49,30 @@ func main() {
 		case "register":
 			handlers.Register(bot, store, update.Message)
 		default:
-			if counter == 0 {
-				go func() {
-					ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(time.Second*40))
-					defer cancel()
-					select {
-					case <-ctx.Done():
-						msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Let me think...")
+			if update.Message.ForwardFrom != nil || update.Message.ForwardSenderName != "" {
+				if !store.IsExist(update.Message.From.ID) {
+					msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Для доступа к этому функционалу необходимо зарегистрироваться. Используйте команду /register <Ваша@почта>")
+					bot.Send(msg)
+					continue
+				}
+				if counter == 0 {
+					go func() {
+						ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(time.Second*40))
+						defer cancel()
+
+						<-ctx.Done()
+
+						msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Начинаю обработку сообщений")
 						bot.Send(msg)
 						handlers.CreateEvent(bot, store, update.Message)
 						counter = 0
-					}
-				}()
+
+					}()
+				}
+				log.Printf("пришел")
+				counter++
+				handlers.CollectMessage(bot, store, update.Message)
 			}
-			counter++
-			handlers.CollectMessage(update.Message, store)
 		}
 	}
 }
