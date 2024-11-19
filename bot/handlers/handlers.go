@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"log"
 	"net/http"
 	"strings"
@@ -47,7 +47,7 @@ func getMessageText(message *tgbotapi.Message) string {
 func Register(bot *tgbotapi.BotAPI, store storage.Storage, message *tgbotapi.Message) {
 	email := message.CommandArguments()
 	if !validate.IsEmail(email) {
-		msg := tgbotapi.NewMessage(message.Chat.ID, "Ghjdth!")
+		msg := tgbotapi.NewMessage(message.Chat.ID, "Проверьте почту!")
 		bot.Send(msg)
 		return
 	}
@@ -59,14 +59,32 @@ func Register(bot *tgbotapi.BotAPI, store storage.Storage, message *tgbotapi.Mes
 	store.SetEmail(message.From.ID, email)
 }
 
-func CollectMessage(message *tgbotapi.Message, store storage.Storage) {
-	if message.ForwardFrom == nil {
-		return
+func addEmailReceiver(bot *tgbotapi.BotAPI, store storage.Storage, message *tgbotapi.Message) {
+	if email := store.GetEmail(message.ForwardFrom.ID); email != "" {
+		emails = append(emails, store.GetEmail(message.ForwardFrom.ID))
+	} else {
+		msg := tgbotapi.NewMessage(message.Chat.ID, "Пользователь %s не зарегистрирован в боте, невозможно создать событие для него")
+		bot.Send(msg)
 	}
-	log.Println("AVTOR", message.ForwardFrom.ID, message.ForwardFrom.FirstName)
-	text := fmt.Sprintf("%s: %s", message.ForwardFrom.FirstName, strings.TrimSpace(message.Text))
+}
+
+func parseMessage(bot *tgbotapi.BotAPI, store storage.Storage, message *tgbotapi.Message) string {
+	var name string
+	if message.ForwardFrom == nil {
+		name = message.ForwardSenderName
+	} else {
+		name = message.ForwardFrom.FirstName + message.From.LastName
+		addEmailReceiver(bot, store, message)
+	}
+
+	text := fmt.Sprintf("%s: %s", name, strings.TrimSpace(message.Text))
+
+	return text
+}
+
+func CollectMessage(bot *tgbotapi.BotAPI, store storage.Storage, message *tgbotapi.Message) {
+	text := parseMessage(bot, store, message)
 	userMessages[message.From.ID] = append(userMessages[message.From.ID], text)
-	emails = append(emails, store.GetEmail(message.ForwardFrom.ID))
 }
 
 func CreateEvent(bot *tgbotapi.BotAPI, store storage.Storage, message *tgbotapi.Message) error {
@@ -76,6 +94,7 @@ func CreateEvent(bot *tgbotapi.BotAPI, store storage.Storage, message *tgbotapi.
 		Language: message.From.LanguageCode,
 		Timezone: 3,
 	}
+
 	payload, err := json.Marshal(data)
 	if err != nil {
 		return err
@@ -90,7 +109,8 @@ func CreateEvent(bot *tgbotapi.BotAPI, store storage.Storage, message *tgbotapi.
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("error from LLM service: %v", resp.Status)
 	}
-	body, err := ioutil.ReadAll(resp.Body)
+
+	body, err := io.ReadAll(resp.Body)
 	if err != nil {
 		return err
 	}
@@ -122,13 +142,20 @@ func CreateEvent(bot *tgbotapi.BotAPI, store storage.Storage, message *tgbotapi.
 	if err != nil {
 		return err
 	}
+
 	log.Println(resp)
-	body, err = ioutil.ReadAll(resp.Body)
+
+	body, err = io.ReadAll(resp.Body)
 	if err != nil {
 		return err
 	}
+
 	log.Println(body)
+
 	delete(userMessages, userID)
+
+	msg := tgbotapi.NewMessage(message.Chat.ID, "Событие создано! Проверьте почтовый ящик") //TODO: Рассылка сообщений всем участникам переписки
+	bot.Send(msg)
 
 	return nil
 }
