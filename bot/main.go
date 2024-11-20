@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"event-automation/bot/fsm"
 	"event-automation/bot/handlers"
 	"event-automation/bot/storage"
 	"event-automation/config"
@@ -20,6 +21,7 @@ func main() {
 	}
 
 	store := storage.NewStore()
+	session := fsm.NewSession()
 
 	bot.Debug = true
 	log.Printf("Authorized on account %s", bot.Self.UserName)
@@ -36,46 +38,47 @@ func main() {
 			continue
 		}
 
-		log.Printf("fff %s  %s", update.Message.From.UserName, update.Message.Text)
-		log.Printf("asd %v ", update.Message.ForwardFrom)
-		log.Printf("adsd %v ", update.Message.ForwardSenderName)
-		switch update.Message.Command() {
-		case "start":
-			msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Welcome to the bot!")
-			bot.Send(msg)
-		case "help":
-			msg := tgbotapi.NewMessage(update.Message.Chat.ID, "There are instructions!")
-			bot.Send(msg)
-		case "register":
-			handlers.Register(bot, store, update.Message)
-		default:
+		userID := update.Message.From.ID
+		userState := session.GetState(userID)
+
+		switch userState.State {
+		case "initial":
+			if update.Message.Command() == "register" {
+				handlers.Register(bot, store, update.Message)
+				session.SetState(userID, "awaiting_messages")
+			} else {
+				msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Сначала зарегистрируйтесь с помощью команды /register")
+				bot.Send(msg)
+			}
+
+		case "awaiting_messages":
 			if update.Message.ForwardFrom != nil || update.Message.ForwardSenderName != "" {
-				if !store.IsExist(update.Message.From.ID) {
-					msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Для доступа к этому функционалу необходимо зарегистрироваться. Используйте команду /register <Ваша@почта>")
-					bot.Send(msg)
-					continue
-				}
-				if counter == 0 {
-					go func() {
+				handlers.CollectMessage(bot, store, update.Message)
+				counter++
+				if counter == 1 {
+					go func(message *tgbotapi.Message) {
 						ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(time.Second*40))
 						defer cancel()
 
 						<-ctx.Done()
 
-						msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Начинаю обработку сообщений")
+						msg := tgbotapi.NewMessage(message.Chat.ID, "Начинаю обработку сообщений")
 						bot.Send(msg)
-						err := handlers.CreateEvent(bot, store, update.Message)
+						err := handlers.CreateEvent(bot, store, message)
 						if err != nil {
-							log.Printf("error %s  ", err)
+							log.Printf("Error: %v", err)
 						}
 						counter = 0
-
-					}()
+					}(update.Message)
 				}
-				log.Printf("пришел")
-				counter++
-				handlers.CollectMessage(bot, store, update.Message)
+			} else {
+				msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Перешлите сообщение для обработки.")
+				bot.Send(msg)
 			}
+
+		default:
+			msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Неизвестное состояние.")
+			bot.Send(msg)
 		}
 	}
 }
