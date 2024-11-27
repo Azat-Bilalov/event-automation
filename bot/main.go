@@ -42,9 +42,16 @@ func main() {
 		userState := session.GetState(userID)
 
 		switch userState.State {
+		case "start":
+			msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Ку. Зарегистрируйтесь с помощью команды /register")
+			bot.Send(msg)
+			session.SetState(userID, "initial")
 		case "initial":
 			if update.Message.Command() == "register" {
-				handlers.Register(bot, store, update.Message)
+				registered := handlers.Register(bot, store, update.Message)
+				if !registered {
+					continue
+				}
 				session.SetState(userID, "awaiting_messages")
 			} else {
 				msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Сначала зарегистрируйтесь с помощью команды /register")
@@ -52,6 +59,14 @@ func main() {
 			}
 
 		case "awaiting_messages":
+			if update.Message.Command() == "register" {
+				msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Вы уже зарегистрированы."+
+					"Хотите сменить email?	Введите /yes, если да ")
+				bot.Send(msg)
+				session.SetState(userID, "change_email")
+				log.Printf("Смена состояния на изменения ящика")
+				continue
+			}
 			if update.Message.ForwardFrom != nil || update.Message.ForwardSenderName != "" {
 				handlers.CollectMessage(bot, store, update.Message)
 				counter++
@@ -75,7 +90,23 @@ func main() {
 				msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Перешлите сообщение для обработки.")
 				bot.Send(msg)
 			}
-
+		case "change_email":
+			if update.Message.Command() == "yes" {
+				msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Теперь введите новый почтовый ящик.")
+				bot.Send(msg)
+				session.SetState(userID, "awaiting_new_email")
+				continue
+			}
+			msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Отмена смены email")
+			bot.Send(msg)
+			session.SetState(userID, "awaiting_messages")
+		case "awaiting_new_email":
+			changeSessionState := handlers.ChangeEmail(bot, store, update.Message)
+			if changeSessionState {
+				log.Printf("залез не туда")
+				session.SetState(userID, "awaiting_messages")
+				continue
+			}
 		default:
 			msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Неизвестное состояние.")
 			bot.Send(msg)
