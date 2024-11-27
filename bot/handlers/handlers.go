@@ -44,19 +44,41 @@ func getMessageText(message *tgbotapi.Message) string {
 	return text
 }
 
-func Register(bot *tgbotapi.BotAPI, store storage.Storage, message *tgbotapi.Message) {
+func Register(bot *tgbotapi.BotAPI, store storage.Storage, message *tgbotapi.Message) bool {
+	registered := false
 	email := message.CommandArguments()
+	if store.IsExist(message.From.ID) {
+		msg := tgbotapi.NewMessage(message.Chat.ID, "Вы уже зарегистрированы. Хотите сменить email? ")
+		bot.Send(msg)
+		return registered
+	}
 	if !validate.IsEmail(email) {
 		msg := tgbotapi.NewMessage(message.Chat.ID, "Проверьте почту!")
 		bot.Send(msg)
-		return
+		return registered
 	}
-	if store.IsExist(message.From.ID) {
-		msg := tgbotapi.NewMessage(message.Chat.ID, "You already registered! Want to change email?") //TODO: change email logic
+	registered = true
+	store.SetEmail(message.From.ID, email)
+	return registered
+}
+
+func ChangeEmail(bot *tgbotapi.BotAPI, store storage.Storage, message *tgbotapi.Message) (changeSessionState bool) {
+	changeSessionState = false
+	if message.Command() == "/return" {
+		changeSessionState = true
+		return changeSessionState
+	}
+	email := message.Text
+	if !validate.IsEmail(email) {
+		msg := tgbotapi.NewMessage(message.Chat.ID, "Проверьте введенную почту!")
 		bot.Send(msg)
-		return
+		return changeSessionState
 	}
 	store.SetEmail(message.From.ID, email)
+	msg := tgbotapi.NewMessage(message.Chat.ID, "Почта изменена!")
+	bot.Send(msg)
+	changeSessionState = true
+	return changeSessionState
 }
 
 func addEmailReceiver(bot *tgbotapi.BotAPI, store storage.Storage, message *tgbotapi.Message) {
