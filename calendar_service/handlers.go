@@ -3,7 +3,6 @@ package calendar_service
 import (
 	"encoding/json"
 	"event-automation/config"
-	"log"
 	"net/http"
 	"time"
 )
@@ -23,13 +22,13 @@ func CreateEventHandler(w http.ResponseWriter, r *http.Request) {
 
 	// Получаем email'ы по никнеймам
 	var attendees []string
-	for _, userID := range req.UserIDs {
-		email, err := GetEmailByID(userID)
-		if err != nil {
-			log.Printf("Error: %v", err)
-			http.Error(w, "Invalid user id: "+userID, http.StatusBadRequest)
-			return
-		}
+	for _, email := range req.UserIDs {
+		// email, err := GetEmailByID(userID)
+		// if err != nil {
+		// 	log.Printf("Error: %v", err)
+		// 	http.Error(w, "Invalid user id: "+userID, http.StatusBadRequest)
+		// 	return
+		// }
 		attendees = append(attendees, email)
 	}
 
