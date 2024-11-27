@@ -43,7 +43,7 @@ func main() {
 
 		switch userState.State {
 		case "start":
-			msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Ку. Зарегистрируйтесь с помощью команды /register")
+			msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Ку. Зарегистрируйтесь с помощью команды /register. Обязательна почта gmail")
 			bot.Send(msg)
 			session.SetState(userID, "initial")
 		case "initial":
@@ -92,12 +92,12 @@ func main() {
 			}
 		case "change_email":
 			if update.Message.Command() == "yes" {
-				msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Теперь введите новый почтовый ящик.")
+				msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Введите новый почтовый ящик.")
 				bot.Send(msg)
 				session.SetState(userID, "awaiting_new_email")
 				continue
 			}
-			msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Отмена смены email")
+			msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Отмена операции смены email")
 			bot.Send(msg)
 			session.SetState(userID, "awaiting_messages")
 		case "awaiting_new_email":

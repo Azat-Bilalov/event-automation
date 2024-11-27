@@ -39,10 +39,10 @@ type EventData struct {
 var userMessages = make(map[int64][]string)
 var emails []string
 
-func getMessageText(message *tgbotapi.Message) string {
-	text := strings.TrimSpace(message.Text)
-	return text
-}
+// func getMessageText(message *tgbotapi.Message) string {
+// 	text := strings.TrimSpace(message.Text)
+// 	return text
+// }
 
 func Register(bot *tgbotapi.BotAPI, store storage.Storage, message *tgbotapi.Message) bool {
 	registered := false
@@ -53,12 +53,15 @@ func Register(bot *tgbotapi.BotAPI, store storage.Storage, message *tgbotapi.Mes
 		return registered
 	}
 	if !validate.IsEmail(email) {
-		msg := tgbotapi.NewMessage(message.Chat.ID, "Проверьте почту!")
+		msg := tgbotapi.NewMessage(message.Chat.ID, "Проверьте введенную почту, неверный формат "+
+			"или домен (в текущей версии обязателен gmail)")
 		bot.Send(msg)
 		return registered
 	}
 	registered = true
 	store.SetEmail(message.From.ID, email)
+	msg := tgbotapi.NewMessage(message.Chat.ID, "Вы зарегистрировались!")
+	bot.Send(msg)
 	return registered
 }
 
@@ -70,7 +73,8 @@ func ChangeEmail(bot *tgbotapi.BotAPI, store storage.Storage, message *tgbotapi.
 	}
 	email := message.Text
 	if !validate.IsEmail(email) {
-		msg := tgbotapi.NewMessage(message.Chat.ID, "Проверьте введенную почту!")
+		msg := tgbotapi.NewMessage(message.Chat.ID, "Проверьте введенную почту, неверный формат "+
+			"или домен (в текущей версии обязателен gmail)")
 		bot.Send(msg)
 		return changeSessionState
 	}
