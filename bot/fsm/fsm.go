@@ -22,7 +22,7 @@ func (s *Session) GetState(userID int64) *UserState {
 	defer s.mu.Unlock()
 
 	if _, exists := s.users[userID]; !exists {
-		s.users[userID] = &UserState{State: "initial"}
+		s.users[userID] = &UserState{State: "start"}
 	}
 	return s.users[userID]
 }
