@@ -8,7 +8,8 @@ type Session struct {
 }
 
 type UserState struct {
-	State string
+	State    string
+	Language string
 }
 
 func NewSession() *Session {
@@ -17,12 +18,14 @@ func NewSession() *Session {
 	}
 }
 
-func (s *Session) GetState(userID int64) *UserState {
+func (s *Session) GetState(userID int64, language string) *UserState {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	if _, exists := s.users[userID]; !exists {
-		s.users[userID] = &UserState{State: "start"}
+		s.users[userID] = &UserState{State: "start",
+			Language: language,
+		}
 	}
 	return s.users[userID]
 }

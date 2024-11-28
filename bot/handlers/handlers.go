@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"strings"
 
+	"event-automation/bot/sender"
 	"event-automation/bot/storage"
 	validate "event-automation/lib/email"
 
@@ -47,21 +48,19 @@ var emails []string
 func Register(bot *tgbotapi.BotAPI, store storage.Storage, message *tgbotapi.Message) bool {
 	registered := false
 	email := message.CommandArguments()
-	if store.IsExist(message.From.ID) {
-		msg := tgbotapi.NewMessage(message.Chat.ID, "Вы уже зарегистрированы. Хотите сменить email? ")
-		bot.Send(msg)
-		return registered
-	}
+	// TODO: (удостовериться) скорее всего это лишняя проверка
+	// if store.IsExist(message.From.ID) {
+	// 	msg := tgbotapi.NewMessage(message.Chat.ID, "Вы уже зарегистрированы. Хотите сменить email? ")
+	// 	bot.Send(msg)
+	// 	return registered
+	// }
 	if !validate.IsEmail(email) {
-		msg := tgbotapi.NewMessage(message.Chat.ID, "Проверьте введенную почту, неверный формат "+
-			"или домен (в текущей версии обязателен gmail)")
-		bot.Send(msg)
+		sender.SendLocalizedMessage(bot, message.From.ID, message.From.LanguageCode, "check email")
 		return registered
 	}
 	registered = true
 	store.SetEmail(message.From.ID, email)
-	msg := tgbotapi.NewMessage(message.Chat.ID, "Вы зарегистрировались!")
-	bot.Send(msg)
+	sender.SendLocalizedMessage(bot, message.From.ID, message.From.LanguageCode, "successful registration")
 	return registered
 }
 
@@ -73,14 +72,11 @@ func ChangeEmail(bot *tgbotapi.BotAPI, store storage.Storage, message *tgbotapi.
 	}
 	email := message.Text
 	if !validate.IsEmail(email) {
-		msg := tgbotapi.NewMessage(message.Chat.ID, "Проверьте введенную почту, неверный формат "+
-			"или домен (в текущей версии обязателен gmail)")
-		bot.Send(msg)
+		sender.SendLocalizedMessage(bot, message.From.ID, message.From.LanguageCode, "check email")
 		return changeSessionState
 	}
 	store.SetEmail(message.From.ID, email)
-	msg := tgbotapi.NewMessage(message.Chat.ID, "Почта изменена!")
-	bot.Send(msg)
+	sender.SendLocalizedMessage(bot, message.From.ID, message.From.LanguageCode, "successful email change")
 	changeSessionState = true
 	return changeSessionState
 }
@@ -89,6 +85,7 @@ func addEmailReceiver(bot *tgbotapi.BotAPI, store storage.Storage, message *tgbo
 	if email := store.GetEmail(message.ForwardFrom.ID); email != "" {
 		emails = append(emails, store.GetEmail(message.ForwardFrom.ID))
 	} else {
+		//TODO: вот тут надо прикинуть как прокидывать имя юзера внутрь функции сендер
 		msg := tgbotapi.NewMessage(message.Chat.ID, "Пользователь %s не зарегистрирован в боте, невозможно создать событие для него")
 		bot.Send(msg)
 	}
@@ -180,8 +177,8 @@ func CreateEvent(bot *tgbotapi.BotAPI, store storage.Storage, message *tgbotapi.
 
 	delete(userMessages, userID)
 
-	msg := tgbotapi.NewMessage(message.Chat.ID, "Событие создано! Проверьте почтовый ящик") //TODO: Рассылка сообщений всем участникам переписки
-	bot.Send(msg)
+	sender.SendLocalizedMessage(bot, message.From.ID, message.From.LanguageCode, "success")
+	//TODO: Рассылка сообщений всем участникам переписки (для скрытых)
 
 	return nil
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"event-automation/bot/fsm"
 	"event-automation/bot/handlers"
+	"event-automation/bot/sender"
 	"event-automation/bot/storage"
 	"event-automation/config"
 	"log"
@@ -39,12 +40,13 @@ func main() {
 		}
 
 		userID := update.Message.From.ID
-		userState := session.GetState(userID)
+		language := update.Message.From.LanguageCode
+		chatID := update.Message.Chat.ID
+		userState := session.GetState(userID, language)
 
 		switch userState.State {
 		case "start":
-			msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Ку. Зарегистрируйтесь с помощью команды /register. Обязательна почта gmail")
-			bot.Send(msg)
+			sender.SendLocalizedMessage(bot, chatID, userState.Language, "welcome")
 			session.SetState(userID, "initial")
 		case "initial":
 			if update.Message.Command() == "register" {
@@ -54,15 +56,12 @@ func main() {
 				}
 				session.SetState(userID, "awaiting_messages")
 			} else {
-				msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Сначала зарегистрируйтесь с помощью команды /register")
-				bot.Send(msg)
+				sender.SendLocalizedMessage(bot, chatID, userState.Language, "register")
 			}
 
 		case "awaiting_messages":
 			if update.Message.Command() == "register" {
-				msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Вы уже зарегистрированы."+
-					"Хотите сменить email?	Введите /yes, если да ")
-				bot.Send(msg)
+				sender.SendLocalizedMessage(bot, chatID, userState.Language, "already registered")
 				session.SetState(userID, "change_email")
 				log.Printf("Смена состояния на изменения ящика")
 				continue
@@ -77,8 +76,7 @@ func main() {
 
 						<-ctx.Done()
 
-						msg := tgbotapi.NewMessage(message.Chat.ID, "Начинаю обработку сообщений")
-						bot.Send(msg)
+						sender.SendLocalizedMessage(bot, chatID, userState.Language, "processing")
 						err := handlers.CreateEvent(bot, store, message)
 						if err != nil {
 							log.Printf("Error: %v", err)
@@ -87,29 +85,24 @@ func main() {
 					}(update.Message)
 				}
 			} else {
-				msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Перешлите сообщение для обработки.")
-				bot.Send(msg)
+				sender.SendLocalizedMessage(bot, chatID, userState.Language, "waiting")
 			}
 		case "change_email":
 			if update.Message.Command() == "yes" {
-				msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Введите новый почтовый ящик.")
-				bot.Send(msg)
+				sender.SendLocalizedMessage(bot, chatID, userState.Language, "waiting email")
 				session.SetState(userID, "awaiting_new_email")
 				continue
 			}
-			msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Отмена операции смены email")
-			bot.Send(msg)
+			sender.SendLocalizedMessage(bot, chatID, userState.Language, "cancel email change")
 			session.SetState(userID, "awaiting_messages")
 		case "awaiting_new_email":
 			changeSessionState := handlers.ChangeEmail(bot, store, update.Message)
 			if changeSessionState {
-				log.Printf("залез не туда")
 				session.SetState(userID, "awaiting_messages")
 				continue
 			}
 		default:
-			msg := tgbotapi.NewMessage(update.Message.Chat.ID, "Неизвестное состояние.")
-			bot.Send(msg)
+			sender.SendLocalizedMessage(bot, chatID, userState.Language, "error")
 		}
 	}
 }
