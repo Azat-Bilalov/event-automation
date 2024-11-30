@@ -3,10 +3,12 @@ package calendar_service
 import (
 	"encoding/json"
 	"event-automation/config"
-	"log"
 	"net/http"
 	"time"
 )
+
+// Шаблон для данных запроса на создание события
+const LAYOUT_DATETIME = "2006-01-02T15:04:05"
 
 // CreateEventHandler обрабатывает запросы на создание событий
 func CreateEventHandler(w http.ResponseWriter, r *http.Request) {
@@ -21,17 +23,8 @@ func CreateEventHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Получаем email'ы по никнеймам
 	var attendees []string
-	for _, userID := range req.UserIDs {
-		email, err := GetEmailByID(userID)
-		if err != nil {
-			log.Printf("Error: %v", err)
-			http.Error(w, "Invalid user id: "+userID, http.StatusBadRequest)
-			return
-		}
-		attendees = append(attendees, email)
-	}
+	attendees = append(attendees, req.RecipientsEmails...)
 
 	// Создаем клиента для Google Calendar
 	credentialsPath := config.GetEnv("GOOGLE_CALENDAR_CREDENTIALS", "credentials.json")
@@ -43,12 +36,12 @@ func CreateEventHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	startDatetime, err := time.Parse(time.RFC3339, req.StartDatetime)
+	startDatetime, err := time.Parse(LAYOUT_DATETIME, req.StartDatetime)
 	if err != nil {
 		http.Error(w, "Invalid date format", http.StatusBadRequest)
 		return
 	}
-	endDatetime, err := time.Parse(time.RFC3339, req.EndDatetime)
+	endDatetime, err := time.Parse(LAYOUT_DATETIME, req.EndDatetime)
 	if err != nil {
 		http.Error(w, "Invalid date format", http.StatusBadRequest)
 		return
