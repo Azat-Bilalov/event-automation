@@ -37,7 +37,7 @@ type EventData struct {
 	Timezone      int64    `json:"timezone"`
 }
 
-var userMessages = make(map[int64][]string)
+var UserMessages = make(map[int64][]string)
 var emails []string
 
 func Register(sender *sender.Sender, store storage.Storage, message *tgbotapi.Message) bool {
@@ -94,13 +94,13 @@ func parseMessage(sender *sender.Sender, store storage.Storage, message *tgbotap
 
 func CollectMessage(sender *sender.Sender, store storage.Storage, message *tgbotapi.Message) {
 	text := parseMessage(sender, store, message)
-	userMessages[message.From.ID] = append(userMessages[message.From.ID], text)
+	UserMessages[message.From.ID] = append(UserMessages[message.From.ID], text)
 }
 
 func CreateEvent(sender *sender.Sender, store storage.Storage, message *tgbotapi.Message) error {
 	userID := message.From.ID
 	data := MessageData{
-		Messages: userMessages[userID],
+		Messages: UserMessages[userID],
 		Language: message.From.LanguageCode,
 		Timezone: 3,
 	}
@@ -117,7 +117,8 @@ func CreateEvent(sender *sender.Sender, store storage.Storage, message *tgbotapi
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("error from LLM service: %v", resp.Status)
+		body, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("error from llm service: %s (status %d)", string(body), resp.StatusCode)
 	}
 
 	body, err := io.ReadAll(resp.Body)
@@ -153,6 +154,11 @@ func CreateEvent(sender *sender.Sender, store storage.Storage, message *tgbotapi
 		return err
 	}
 
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("error from calendar service: %s (status %d)", string(body), resp.StatusCode)
+	}
+
 	log.Println(resp)
 
 	body, err = io.ReadAll(resp.Body)
@@ -162,7 +168,7 @@ func CreateEvent(sender *sender.Sender, store storage.Storage, message *tgbotapi
 
 	log.Println(body)
 
-	delete(userMessages, userID)
+	delete(UserMessages, userID)
 
 	sender.SendLocalizedMessage(message.From.ID, message.From.LanguageCode, "success")
 	//TODO: Рассылка сообщений всем участникам переписки (для скрытых)

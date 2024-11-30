@@ -1,14 +1,13 @@
 package main
 
 import (
-	"context"
 	"event-automation/bot/fsm"
 	"event-automation/bot/handlers"
 	"event-automation/bot/sender"
 	"event-automation/bot/storage"
 	"event-automation/config"
+	"fmt"
 	"log"
-	"time"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
@@ -31,14 +30,26 @@ func main() {
 	u := tgbotapi.NewUpdate(0)
 	u.Timeout = 60
 
+	// TODO: держать вместе userMessages и lastUpdateID
+	lastUpdateID := make(map[int64]int)
+
 	updates := bot.GetUpdatesChan(u)
-	counter := 0 // временное решение для начала отсчета пересланных сообщений
 
 	for update := range updates {
 		userID := update.Message.From.ID
 		language := update.Message.From.LanguageCode
 		chatID := update.Message.Chat.ID
 		userState := session.GetState(userID, language)
+
+		if len(handlers.UserMessages[userID]) > 0 && update.UpdateID != lastUpdateID[userID] {
+			fmt.Printf("Processing messages for user %d: %v\n", userID, handlers.UserMessages[userID])
+			sender.SendLocalizedMessage(userID, userState.Language, "processing")
+			// TODO: не передавать экземпляр сообщения, а только нужные свойства
+			err := handlers.CreateEvent(sender, store, update.Message)
+			if err != nil {
+				log.Printf("Error: %v", err)
+			}
+		}
 
 		switch userState.State {
 		case "start":
@@ -59,30 +70,8 @@ func main() {
 			session.SetState(userID, "awaiting_messages")
 
 		case "awaiting_messages":
-			if update.Message.Command() == "register" {
-				sender.SendLocalizedMessage(chatID, userState.Language, "already registered")
-				session.SetState(userID, "change_email")
-				log.Printf("Смена состояния на изменения ящика")
-				continue
-			}
 			if update.Message.ForwardFrom != nil || update.Message.ForwardSenderName != "" {
 				handlers.CollectMessage(sender, store, update.Message)
-				counter++
-				if counter == 1 {
-					go func(message *tgbotapi.Message) {
-						ctx, cancel := context.WithDeadline(context.Background(), time.Now().Add(time.Second*40))
-						defer cancel()
-
-						<-ctx.Done()
-
-						sender.SendLocalizedMessage(chatID, userState.Language, "processing")
-						err := handlers.CreateEvent(sender, store, message)
-						if err != nil {
-							log.Printf("Error: %v", err)
-						}
-						counter = 0
-					}(update.Message)
-				}
 			} else {
 				sender.SendLocalizedMessage(chatID, userState.Language, "waiting")
 			}
