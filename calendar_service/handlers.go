@@ -7,9 +7,6 @@ import (
 	"time"
 )
 
-// Шаблон для данных запроса на создание события
-const LAYOUT_DATETIME = "2006-01-02T15:04:05"
-
 // CreateEventHandler обрабатывает запросы на создание событий
 func CreateEventHandler(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
@@ -36,12 +33,12 @@ func CreateEventHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	startDatetime, err := time.Parse(LAYOUT_DATETIME, req.StartDatetime)
+	startDatetime, err := time.Parse(config.LayoutDatetime, req.StartDatetime)
 	if err != nil {
 		http.Error(w, "Invalid date format", http.StatusBadRequest)
 		return
 	}
-	endDatetime, err := time.Parse(LAYOUT_DATETIME, req.EndDatetime)
+	endDatetime, err := time.Parse(config.LayoutDatetime, req.EndDatetime)
 	if err != nil {
 		http.Error(w, "Invalid date format", http.StatusBadRequest)
 		return

@@ -37,34 +37,21 @@ type EventData struct {
 	Timezone      int64    `json:"timezone"`
 }
 
-var userMessages = make(map[int64][]string)
+var UserMessages = make(map[int64][]string)
 var emails []string
 
-// func getMessageText(message *tgbotapi.Message) string {
-// 	text := strings.TrimSpace(message.Text)
-// 	return text
-// }
-
-func Register(bot *tgbotapi.BotAPI, store storage.Storage, message *tgbotapi.Message) bool {
-	registered := false
-	email := message.CommandArguments()
-	// TODO: (удостовериться) скорее всего это лишняя проверка
-	// if store.IsExist(message.From.ID) {
-	// 	msg := tgbotapi.NewMessage(message.Chat.ID, "Вы уже зарегистрированы. Хотите сменить email? ")
-	// 	bot.Send(msg)
-	// 	return registered
-	// }
+func Register(sender *sender.Sender, store storage.Storage, message *tgbotapi.Message) bool {
+	email := message.Text
 	if !validate.IsEmail(email) {
-		sender.SendLocalizedMessage(bot, message.From.ID, message.From.LanguageCode, "check email")
-		return registered
+		sender.SendLocalizedMessage(message.From.ID, message.From.LanguageCode, "check email")
+		return false
 	}
-	registered = true
 	store.SetEmail(message.From.ID, email)
-	sender.SendLocalizedMessage(bot, message.From.ID, message.From.LanguageCode, "successful registration")
-	return registered
+	sender.SendLocalizedMessage(message.From.ID, message.From.LanguageCode, "successful registration")
+	return true
 }
 
-func ChangeEmail(bot *tgbotapi.BotAPI, store storage.Storage, message *tgbotapi.Message) (changeSessionState bool) {
+func ChangeEmail(sender *sender.Sender, store storage.Storage, message *tgbotapi.Message) (changeSessionState bool) {
 	changeSessionState = false
 	if message.Command() == "/return" {
 		changeSessionState = true
@@ -72,32 +59,32 @@ func ChangeEmail(bot *tgbotapi.BotAPI, store storage.Storage, message *tgbotapi.
 	}
 	email := message.Text
 	if !validate.IsEmail(email) {
-		sender.SendLocalizedMessage(bot, message.From.ID, message.From.LanguageCode, "check email")
+		sender.SendLocalizedMessage(message.From.ID, message.From.LanguageCode, "check email")
 		return changeSessionState
 	}
 	store.SetEmail(message.From.ID, email)
-	sender.SendLocalizedMessage(bot, message.From.ID, message.From.LanguageCode, "successful email change")
+	sender.SendLocalizedMessage(message.From.ID, message.From.LanguageCode, "successful email change")
 	changeSessionState = true
 	return changeSessionState
 }
 
-func addEmailReceiver(bot *tgbotapi.BotAPI, store storage.Storage, message *tgbotapi.Message) {
+func addEmailReceiver(_ *sender.Sender, store storage.Storage, message *tgbotapi.Message) {
 	if email := store.GetEmail(message.ForwardFrom.ID); email != "" {
 		emails = append(emails, store.GetEmail(message.ForwardFrom.ID))
 	} else {
-		//TODO: вот тут надо прикинуть как прокидывать имя юзера внутрь функции сендер
-		msg := tgbotapi.NewMessage(message.Chat.ID, "Пользователь %s не зарегистрирован в боте, невозможно создать событие для него")
-		bot.Send(msg)
+		// TODO: вот тут надо прикинуть как прокидывать имя юзера внутрь функции сендер
+		// msg := tgbotapi.NewMessage(message.Chat.ID, "Пользователь %s не зарегистрирован в боте, невозможно создать событие для него")
+		// bot.Send(msg)
 	}
 }
 
-func parseMessage(bot *tgbotapi.BotAPI, store storage.Storage, message *tgbotapi.Message) string {
+func parseMessage(sender *sender.Sender, store storage.Storage, message *tgbotapi.Message) string {
 	var name string
 	if message.ForwardFrom == nil {
 		name = message.ForwardSenderName
 	} else {
-		name = message.ForwardFrom.FirstName + message.From.LastName
-		addEmailReceiver(bot, store, message)
+		name = message.ForwardFrom.FirstName + " " + message.From.LastName
+		addEmailReceiver(sender, store, message)
 	}
 
 	text := fmt.Sprintf("%s: %s", name, strings.TrimSpace(message.Text))
@@ -105,15 +92,15 @@ func parseMessage(bot *tgbotapi.BotAPI, store storage.Storage, message *tgbotapi
 	return text
 }
 
-func CollectMessage(bot *tgbotapi.BotAPI, store storage.Storage, message *tgbotapi.Message) {
-	text := parseMessage(bot, store, message)
-	userMessages[message.From.ID] = append(userMessages[message.From.ID], text)
+func CollectMessage(sender *sender.Sender, store storage.Storage, message *tgbotapi.Message) {
+	text := parseMessage(sender, store, message)
+	UserMessages[message.From.ID] = append(UserMessages[message.From.ID], text)
 }
 
-func CreateEvent(bot *tgbotapi.BotAPI, store storage.Storage, message *tgbotapi.Message) error {
+func CreateEvent(sender *sender.Sender, store storage.Storage, message *tgbotapi.Message) error {
 	userID := message.From.ID
 	data := MessageData{
-		Messages: userMessages[userID],
+		Messages: UserMessages[userID],
 		Language: message.From.LanguageCode,
 		Timezone: 3,
 	}
@@ -130,7 +117,8 @@ func CreateEvent(bot *tgbotapi.BotAPI, store storage.Storage, message *tgbotapi.
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("error from LLM service: %v", resp.Status)
+		body, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("error from llm service: %s (status %d)", string(body), resp.StatusCode)
 	}
 
 	body, err := io.ReadAll(resp.Body)
@@ -166,6 +154,11 @@ func CreateEvent(bot *tgbotapi.BotAPI, store storage.Storage, message *tgbotapi.
 		return err
 	}
 
+	if resp.StatusCode != http.StatusOK {
+		body, _ := io.ReadAll(resp.Body)
+		return fmt.Errorf("error from calendar service: %s (status %d)", string(body), resp.StatusCode)
+	}
+
 	log.Println(resp)
 
 	body, err = io.ReadAll(resp.Body)
@@ -175,9 +168,9 @@ func CreateEvent(bot *tgbotapi.BotAPI, store storage.Storage, message *tgbotapi.
 
 	log.Println(body)
 
-	delete(userMessages, userID)
+	delete(UserMessages, userID)
 
-	sender.SendLocalizedMessage(bot, message.From.ID, message.From.LanguageCode, "success")
+	sender.SendLocalizedMessage(message.From.ID, message.From.LanguageCode, "success")
 	//TODO: Рассылка сообщений всем участникам переписки (для скрытых)
 
 	return nil

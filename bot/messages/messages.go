@@ -7,7 +7,9 @@ var Messages = map[string]map[string]string{
 		"error":   "Something went wrong!",
 	},
 	"ru": {
-		"welcome":  "Ку. Зарегистрируйтесь с помощью команды /register. Обязательна почта gmail",
+		"welcome": "Ку. Я помогу тебе с твоими событиями в google-календаре",
+		"register required": "Тебе нужно зарегистрировать свой gmail, " +
+			"отправьте его в формате `example@gmail.com`",
 		"register": "Сначала зарегистрируйтесь с помощью команды /register",
 		"already registered": "Вы уже зарегистрированы." +
 			"Хотите сменить email?	Введите /yes, если да",
