@@ -31,7 +31,7 @@ type LlmResponse struct {
 type EventData struct {
 	Title         string   `json:"title"`
 	Desc          string   `json:"description"`
-	Emails        []string `json:"user_ids"`
+	Emails        []string `json:"recipients_emails"`
 	StartDatetime string   `json:"start_datetime"`
 	EndDatetime   string   `json:"end_datetime"`
 	Timezone      int64    `json:"timezone"`

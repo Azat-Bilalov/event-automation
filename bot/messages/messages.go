@@ -20,7 +20,7 @@ var Messages = map[string]map[string]string{
 		"waiting":                 "Перешлите сообщение для обработки",
 		"waiting email":           "Введите новый почтовый ящик",
 		"cancel email change":     "Отмена операции смены email",
-		"success":                 "Отмена операции смены email",
+		"success":                 "Встреча успешно создана",
 		"help":                    "Вот доступные команды...",
 		"error":                   "Что-то пошло не так!",
 	},
