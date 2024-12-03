@@ -6,9 +6,7 @@ import (
 	"event-automation/bot/sender"
 	"event-automation/bot/storage"
 	"event-automation/config"
-	"fmt"
 	"log"
-	"time"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
@@ -33,8 +31,7 @@ func main() {
 
 	updates := bot.GetUpdatesChan(u)
 
-	// Буфер для сообщений и флаги обработки
-	isProcessing := make(map[int64]bool) // Флаг обработки сообщений для пользователя
+	state := handlers.NewUserProcessingState()
 
 	for update := range updates {
 		if update.Message == nil {
@@ -50,7 +47,7 @@ func main() {
 		case "start":
 			if store.IsExist(chatID) {
 				sender.SendLocalizedMessage(chatID, userState.Language, "waiting")
-				session.SetState(userID, "awaiting_messages")
+				session.SetState(userID, "awaiting messages")
 			} else {
 				sender.SendLocalizedMessage(chatID, userState.Language, "welcome")
 				sender.SendLocalizedMessage(chatID, userState.Language, "register required")
@@ -65,26 +62,7 @@ func main() {
 
 		case "awaiting_messages":
 			if update.Message.ForwardFrom != nil || update.Message.ForwardSenderName != "" {
-				handlers.CollectMessage(sender, store, update.Message)
-				if !isProcessing[userID] {
-					isProcessing[userID] = true
-
-					go func(message *tgbotapi.Message) {
-						time.Sleep(2 * time.Second)
-
-						// Обрабатываем накопленные сообщения
-						if len(handlers.UserMessages[userID]) > 0 {
-							fmt.Printf("Processing messages for user %d: %v\n", userID, handlers.UserMessages[userID])
-							sender.SendLocalizedMessage(userID, userState.Language, "processing")
-							handlers.CreateEvent(sender, store, message)
-							if err != nil {
-								log.Printf("Error processing messages for user %d: %v", userID, err)
-							}
-							handlers.UserMessages[userID] = nil
-						}
-						isProcessing[userID] = false
-					}(update.Message)
-				}
+				handlers.CollectMessageAndSendEvent(state, sender, store, update.Message)
 			} else {
 				sender.SendLocalizedMessage(chatID, userState.Language, "waiting")
 			}

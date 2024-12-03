@@ -16,8 +16,9 @@ func NewSender(bot *tgbotapi.BotAPI) *Sender {
 	}
 }
 
-func (s *Sender) SendLocalizedMessage(chatID int64, lang string, key string) {
-	text := messages.GetMessage(lang, key)
+// TODO: придумать способ типизировать аргументы
+func (s *Sender) SendLocalizedMessage(chatID int64, lang string, key string, args ...interface{}) {
+	text := messages.GetMessage(lang, key, args...)
 	msg := tgbotapi.NewMessage(chatID, text)
 	msg.ParseMode = "Markdown"
 	s.bot.Send(msg)

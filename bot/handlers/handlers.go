@@ -1,14 +1,6 @@
 package handlers
 
 import (
-	"bytes"
-	"encoding/json"
-	"fmt"
-	"io"
-	"log"
-	"net/http"
-	"strings"
-
 	"event-automation/bot/sender"
 	"event-automation/bot/storage"
 	validate "event-automation/lib/email"
@@ -28,6 +20,10 @@ type LlmResponse struct {
 	EndDatetime   string `json:"end_datetime"`
 }
 
+type CalendarResponse struct {
+	EventLink string `json:"event_link"`
+}
+
 type EventData struct {
 	Title         string   `json:"title"`
 	Desc          string   `json:"description"`
@@ -37,7 +33,6 @@ type EventData struct {
 	Timezone      int64    `json:"timezone"`
 }
 
-var UserMessages = make(map[int64][]string)
 var emails []string
 
 func Register(sender *sender.Sender, store storage.Storage, message *tgbotapi.Message) bool {
@@ -66,112 +61,4 @@ func ChangeEmail(sender *sender.Sender, store storage.Storage, message *tgbotapi
 	sender.SendLocalizedMessage(message.From.ID, message.From.LanguageCode, "successful email change")
 	changeSessionState = true
 	return changeSessionState
-}
-
-func addEmailReceiver(_ *sender.Sender, store storage.Storage, message *tgbotapi.Message) {
-	if email := store.GetEmail(message.ForwardFrom.ID); email != "" {
-		emails = append(emails, store.GetEmail(message.ForwardFrom.ID))
-	} else {
-		// TODO: вот тут надо прикинуть как прокидывать имя юзера внутрь функции сендер
-		// msg := tgbotapi.NewMessage(message.Chat.ID, "Пользователь %s не зарегистрирован в боте, невозможно создать событие для него")
-		// bot.Send(msg)
-	}
-}
-
-func parseMessage(sender *sender.Sender, store storage.Storage, message *tgbotapi.Message) string {
-	var name string
-	if message.ForwardFrom == nil {
-		name = message.ForwardSenderName
-	} else {
-		name = message.ForwardFrom.FirstName + " " + message.From.LastName
-		addEmailReceiver(sender, store, message)
-	}
-
-	text := fmt.Sprintf("%s: %s", name, strings.TrimSpace(message.Text))
-
-	return text
-}
-
-func CollectMessage(sender *sender.Sender, store storage.Storage, message *tgbotapi.Message) {
-	text := parseMessage(sender, store, message)
-	UserMessages[message.From.ID] = append(UserMessages[message.From.ID], text)
-}
-
-func CreateEvent(sender *sender.Sender, store storage.Storage, message *tgbotapi.Message) error {
-	userID := message.From.ID
-	data := MessageData{
-		Messages: UserMessages[userID],
-		Language: message.From.LanguageCode,
-		Timezone: 3,
-	}
-
-	payload, err := json.Marshal(data)
-	if err != nil {
-		return err
-	}
-
-	resp, err := http.Post("http://localhost:8080/new_meet", "application/json", bytes.NewBuffer(payload))
-	if err != nil {
-		return err
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("error from llm service: %s (status %d)", string(body), resp.StatusCode)
-	}
-
-	body, err := io.ReadAll(resp.Body)
-	if err != nil {
-		return err
-	}
-
-	var response LlmResponse
-
-	err = json.Unmarshal(body, &response)
-	if err != nil {
-		return err
-	}
-
-	log.Println("Response Body:", string(body))
-
-	reqBody := EventData{
-		Title:         response.Title,
-		Desc:          response.Title,
-		Emails:        emails,
-		StartDatetime: response.StartDatetime,
-		EndDatetime:   response.EndDatetime,
-		Timezone:      3,
-	}
-
-	payload, err = json.Marshal(reqBody)
-	if err != nil {
-		return err
-	}
-
-	resp, err = http.Post("http://localhost:8080/create_event", "application/json", bytes.NewBuffer(payload))
-	if err != nil {
-		return err
-	}
-
-	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
-		return fmt.Errorf("error from calendar service: %s (status %d)", string(body), resp.StatusCode)
-	}
-
-	log.Println(resp)
-
-	body, err = io.ReadAll(resp.Body)
-	if err != nil {
-		return err
-	}
-
-	log.Println(body)
-
-	delete(UserMessages, userID)
-
-	sender.SendLocalizedMessage(message.From.ID, message.From.LanguageCode, "success")
-	//TODO: Рассылка сообщений всем участникам переписки (для скрытых)
-
-	return nil
 }
