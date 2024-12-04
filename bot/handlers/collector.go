@@ -1,6 +1,8 @@
 package handlers
 
 import (
+	"event-automation/bot/models"
+	"event-automation/bot/processing"
 	"event-automation/bot/sender"
 	"event-automation/bot/storage"
 	"event-automation/bot/utils"
@@ -12,6 +14,8 @@ import (
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
 
+const processDelay = 2 * time.Second
+
 func parseMessage(message *tgbotapi.Message) string {
 	var name string
 	if name = utils.ExtractName(message.ForwardFrom); name == "Unknown" {
@@ -22,105 +26,73 @@ func parseMessage(message *tgbotapi.Message) string {
 	return text
 }
 
-type UserProcessingState struct {
-	// мапа с массивом пересланных сообщений от каждого пользователя
-	ForwardedMessages map[int64][]string
-	// мапа с флагом начала обработки пересланных сообщений для пользователя
-	IsProcessing map[int64]bool
-	// список имен пользователей, которые не получат событие - закрытый акк
-	InaccessibleClosed map[int64][]string
-	// список имен пользователей, которые не получат событие - нет в базе
-	InaccessibleNotInDB map[int64][]string
-}
-
-func NewUserProcessingState() *UserProcessingState {
-	return &UserProcessingState{
-		ForwardedMessages:   make(map[int64][]string),
-		IsProcessing:        make(map[int64]bool),
-		InaccessibleClosed:  make(map[int64][]string),
-		InaccessibleNotInDB: make(map[int64][]string),
-	}
-}
-
-func handleClosedAccount(state *UserProcessingState, userID int64, name string) {
-	state.InaccessibleClosed[userID] = append(state.InaccessibleClosed[userID], name)
-}
-
-func handleNotInDB(state *UserProcessingState, userID int64, name string) {
-	state.InaccessibleNotInDB[userID] = append(state.InaccessibleNotInDB[userID], name)
-}
-
-func handleForwardedMessage(state *UserProcessingState, store storage.Storage, message *tgbotapi.Message) {
+func handleForwardedMessage(state *processing.ProcessingState, store storage.Storage, message *tgbotapi.Message) {
 	userID := message.From.ID
 	text := parseMessage(message)
 	state.ForwardedMessages[userID] = append(state.ForwardedMessages[userID], text)
 
 	if message.ForwardFrom == nil {
-		handleClosedAccount(state, userID, message.ForwardSenderName)
+		state.AddToClosedAccount(userID, message.ForwardSenderName)
 	} else if email := store.GetEmail(message.ForwardFrom.ID); email != "" {
-		emails = append(emails, email)
+		state.Emails[userID] = append(state.Emails[userID], email)
 	} else {
-		handleNotInDB(state, userID, utils.ExtractName(message.ForwardFrom))
+		state.AddToNotInDB(userID, utils.ExtractName(message.ForwardFrom))
 	}
 }
 
 func processMessagesForUser(
-	state *UserProcessingState,
+	state *processing.ProcessingState,
 	sender *sender.Sender,
-	message *tgbotapi.Message,
-	delay time.Duration,
+	message tgbotapi.Message,
 ) {
 	userID := message.From.ID
 
-	// Если обработка уже запущена, выходим
 	if state.IsProcessing[userID] {
 		return
 	}
 	state.IsProcessing[userID] = true
 
-	// Запускаем горутину для обработки
-	go func() {
-		defer func() { state.IsProcessing[userID] = false }()
-		time.Sleep(delay)
+	go func(msg tgbotapi.Message) {
+		userID := msg.From.ID
 
-		language := message.From.LanguageCode
+		defer func() { state.IsProcessing[userID] = false }()
+		time.Sleep(processDelay)
+
+		language := msg.From.LanguageCode
 		sender.SendLocalizedMessage(userID, language, "processing")
 
-		ctx := &UserEventContext{
+		event := &models.UserEvent{
 			UserID:   userID,
 			Language: language,
 			Messages: state.ForwardedMessages[userID],
-			Emails:   emails,
+			Emails:   state.Emails[userID],
 			Timezone: 3,
 		}
 
-		calendarResponse, err := createEvent(ctx)
+		calendarResponse, err := handleEventCreation(event)
 		if err != nil {
 			log.Printf("Error processing messages for user %d: %v", userID, err)
 		}
 
-		// Отправка подтверждения пользователю
 		sender.SendLocalizedMessage(
-			ctx.UserID,
-			ctx.Language,
+			event.UserID,
+			event.Language,
 			"success",
 			calendarResponse.EventLink,
 			state.InaccessibleClosed[userID],
 			state.InaccessibleNotInDB[userID],
 		)
 
-		state.ForwardedMessages[userID] = nil
-		state.InaccessibleClosed[userID] = nil
-		state.InaccessibleNotInDB[userID] = nil
-	}()
+		state.ClearUserData(userID)
+	}(message)
 }
 
 func CollectMessageAndSendEvent(
-	state *UserProcessingState,
+	state *processing.ProcessingState,
 	sender *sender.Sender,
 	store storage.Storage,
 	message *tgbotapi.Message,
 ) {
 	handleForwardedMessage(state, store, message)
-	processMessagesForUser(state, sender, message, 2*time.Second)
+	processMessagesForUser(state, sender, *message)
 }

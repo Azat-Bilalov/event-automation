@@ -3,25 +3,18 @@ package handlers
 import (
 	"bytes"
 	"encoding/json"
+	"event-automation/bot/models"
 	"fmt"
 	"io"
 	"log"
 	"net/http"
 )
 
-type UserEventContext struct {
-	UserID   int64
-	Language string
-	Messages []string
-	Emails   []string
-	Timezone int64
-}
-
-func callLLMService(ctx *UserEventContext) (*LlmResponse, error) {
-	data := MessageData{
-		Messages: ctx.Messages,
-		Language: ctx.Language,
-		Timezone: ctx.Timezone,
+func callLLMService(event *models.UserEvent) (*models.LLMResponse, error) {
+	data := models.LLMMessageRequest{
+		Messages: event.Messages,
+		Language: event.Language,
+		Timezone: event.Timezone,
 	}
 
 	payload, err := json.Marshal(data)
@@ -36,11 +29,14 @@ func callLLMService(ctx *UserEventContext) (*LlmResponse, error) {
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		body, _ := io.ReadAll(resp.Body)
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return nil, fmt.Errorf("failed to read LLM service error response: %w", err)
+		}
 		return nil, fmt.Errorf("LLM service error: %s (status %d)", string(body), resp.StatusCode)
 	}
 
-	var llmResponse LlmResponse
+	var llmResponse models.LLMResponse
 	err = json.NewDecoder(resp.Body).Decode(&llmResponse)
 	if err != nil {
 		return nil, fmt.Errorf("failed to decode LLM response: %w", err)
@@ -50,14 +46,14 @@ func callLLMService(ctx *UserEventContext) (*LlmResponse, error) {
 	return &llmResponse, nil
 }
 
-func createCalendarEvent(ctx *UserEventContext, llmResponse *LlmResponse) (*CalendarResponse, error) {
-	reqBody := EventData{
-		Title:         llmResponse.Title,
-		Desc:          llmResponse.Title,
-		Emails:        ctx.Emails,
-		StartDatetime: llmResponse.StartDatetime,
-		EndDatetime:   llmResponse.EndDatetime,
-		Timezone:      ctx.Timezone,
+func createCalendarEvent(event *models.UserEvent, llmResponse *models.LLMResponse) (*models.GoogleCalendarResponse, error) {
+	reqBody := models.CreateEventRequest{
+		Title:       llmResponse.Title,
+		Description: llmResponse.Title,
+		Emails:      event.Emails,
+		StartDate:   llmResponse.StartDate,
+		EndDate:     llmResponse.EndDate,
+		Timezone:    event.Timezone,
 	}
 
 	payload, err := json.Marshal(reqBody)
@@ -76,7 +72,7 @@ func createCalendarEvent(ctx *UserEventContext, llmResponse *LlmResponse) (*Cale
 		return nil, fmt.Errorf("calendar service error: %s (status %d)", string(body), resp.StatusCode)
 	}
 
-	var calendarResponse CalendarResponse
+	var calendarResponse models.GoogleCalendarResponse
 	err = json.NewDecoder(resp.Body).Decode(&calendarResponse)
 	if err != nil {
 		return nil, fmt.Errorf("failed to decode Calendar response: %w", err)
@@ -86,19 +82,17 @@ func createCalendarEvent(ctx *UserEventContext, llmResponse *LlmResponse) (*Cale
 	return &calendarResponse, nil
 }
 
-func createEvent(ctx *UserEventContext) (*CalendarResponse, error) {
-	// Создаём данные для LLM сервиса
-	llmResponse, err := callLLMService(ctx)
+func handleEventCreation(event *models.UserEvent) (*models.GoogleCalendarResponse, error) {
+	llmResponse, err := callLLMService(event)
 	if err != nil {
 		return nil, err
 	}
 
-	// Готовим запрос к календарю
-	calendarResponse, err := createCalendarEvent(ctx, llmResponse)
+	calendarResponse, err := createCalendarEvent(event, llmResponse)
 	if err != nil {
 		return nil, err
 	}
 
-	log.Printf("Event created successfully for user %d", ctx.UserID)
+	log.Printf("Event created successfully for user %d", event.UserID)
 	return calendarResponse, nil
 }

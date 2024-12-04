@@ -3,6 +3,7 @@ package main
 import (
 	"event-automation/bot/fsm"
 	"event-automation/bot/handlers"
+	"event-automation/bot/processing"
 	"event-automation/bot/sender"
 	"event-automation/bot/storage"
 	"event-automation/config"
@@ -31,7 +32,7 @@ func main() {
 
 	updates := bot.GetUpdatesChan(u)
 
-	state := handlers.NewUserProcessingState()
+	state := processing.NewProcessingState()
 
 	for update := range updates {
 		if update.Message == nil {
