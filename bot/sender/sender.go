@@ -6,8 +6,20 @@ import (
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
 
-func SendLocalizedMessage(bot *tgbotapi.BotAPI, chatID int64, lang string, key string) {
-	text := messages.GetMessage(lang, key)
+type Sender struct {
+	bot *tgbotapi.BotAPI
+}
+
+func NewSender(bot *tgbotapi.BotAPI) *Sender {
+	return &Sender{
+		bot: bot,
+	}
+}
+
+// TODO: придумать способ типизировать аргументы
+func (s *Sender) SendLocalizedMessage(chatID int64, lang string, key string, args ...interface{}) {
+	text := messages.GetMessage(lang, key, args...)
 	msg := tgbotapi.NewMessage(chatID, text)
-	bot.Send(msg)
+	msg.ParseMode = "Markdown"
+	s.bot.Send(msg)
 }
