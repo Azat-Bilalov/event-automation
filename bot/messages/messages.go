@@ -103,6 +103,7 @@ func GetMessage(lang, key string, args ...interface{}) string {
 
 	// В зависимости от ключа выбираем нужное сообщение
 	var message Message
+	fmt.Printf("you here %v \n", key)
 	switch key {
 	case "welcome":
 		message = localization.Welcome
@@ -135,7 +136,7 @@ func GetMessage(lang, key string, args ...interface{}) string {
 	case "cancel email change":
 		message = localization.CancelEmailChange
 	default:
-		return "Message not found"
+		return "Message not found ff"
 	}
 
 	// Если сообщение динамическое, вызываем функцию и передаем аргументы

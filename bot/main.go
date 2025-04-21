@@ -44,21 +44,48 @@ func main() {
 		chatID := update.Message.Chat.ID
 		userState := session.GetState(userID, language)
 
+		text := update.Message.Text
+
+		switch text {
+		case "ℹ️ О боте":
+			sender.SendLocalizedMessage(chatID, userState.Language, "welcome")
+			sender.SendMenu(chatID, userState.State)
+			continue
+
+		case "📝 Зарегистрироваться":
+			session.SetState(userID, "initial")
+			sender.SendLocalizedMessage(chatID, userState.Language, "register required")
+			sender.SendMenu(chatID, "initial")
+			continue
+
+		case "📧 Сменить Email":
+			session.SetState(userID, "change_email")
+			sender.SendMenu(chatID, "change_email")
+			continue
+
+		case "🔙 Главное меню":
+			session.SetState(userID, "awaiting_messages")
+			sender.SendLocalizedMessage(chatID, userState.Language, "back to menu")
+			sender.SendMenu(chatID, "awaiting_messages")
+			continue
+		}
+
 		switch userState.State {
 		case "start":
+			sender.SendMenu(chatID, userState.State)
 			if store.IsExist(chatID) {
 				sender.SendLocalizedMessage(chatID, userState.Language, "waiting")
 				session.SetState(userID, "awaiting messages")
 			} else {
 				sender.SendLocalizedMessage(chatID, userState.Language, "welcome")
 				sender.SendLocalizedMessage(chatID, userState.Language, "register required")
-				session.SetState(userID, "initial")
 			}
 
 		case "initial":
 			registered := handlers.Register(sender, store, update.Message)
 			if registered {
 				session.SetState(userID, "awaiting_messages")
+				sender.SendMenu(chatID, "awaiting_messages")
 			}
 
 		case "awaiting_messages":
@@ -69,13 +96,8 @@ func main() {
 			}
 
 		case "change_email":
-			if update.Message.Command() == "yes" {
-				sender.SendLocalizedMessage(chatID, userState.Language, "waiting email")
-				session.SetState(userID, "awaiting_new_email")
-			} else {
-				sender.SendLocalizedMessage(chatID, userState.Language, "cancel email change")
-				session.SetState(userID, "awaiting_messages")
-			}
+			sender.SendLocalizedMessage(chatID, userState.Language, "waiting email")
+			session.SetState(userID, "awaiting_new_email")
 
 		case "awaiting_new_email":
 			changeSessionState := handlers.ChangeEmail(sender, store, update.Message)

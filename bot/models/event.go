@@ -5,5 +5,5 @@ type UserEvent struct {
 	Language string
 	Messages []string
 	Emails   []string
-	Timezone int64
+	Timezone int
 }
